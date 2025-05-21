@@ -8,28 +8,36 @@ interface FetchOptions extends RequestInit {
 }
 
 const fetchData = async <T>(endpoint: string, options: FetchOptions = {}): Promise<T> => {
-  const { params, ...fetchOptions } = options;
-  
   const url = new URL(`${BASE_URL}${endpoint}`);
-  url.searchParams.append('api_key', API_KEY!);
-  url.searchParams.append('language', 'ru-RU'); 
-
-  if (params) {
-    for (const key in params) {
-      url.searchParams.append(key, String(params[key]));
-    }
+  url.searchParams.append('api_key', API_KEY as string);
+  
+  if (options.params) {
+    Object.entries(options.params).forEach(([key, value]) => {
+      url.searchParams.append(key, String(value));
+    });
   }
+
+  const fetchOptions: RequestInit = {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    }
+  };
 
   try {
     const response = await fetch(url.toString(), fetchOptions);
     if (!response.ok) {
-      console.error('API Error Response:', await response.json());
-      throw new Error(`API request failed with status ${response.status}`);
+      const errorData = await response.json().catch(() => ({ message: 'Unknown API error structure' }));
+      console.error('API Error Response:', errorData);
+      const error = new Error(`API request failed with status ${response.status}: ${errorData.status_message || JSON.stringify(errorData)}`) as Error & { status: number };
+      error.status = response.status;
+      throw error;
     }
     return response.json() as Promise<T>;
   } catch (error) {
-    console.error('Fetch Error:', error);
-    throw error;
+    console.error('Fetch Error in fetchData:', error);
+    throw error; 
   }
 };
 
@@ -55,4 +63,26 @@ export const getPopularMovies = async (page: number = 1): Promise<PaginatedRespo
 
 export const getMovieDetails = async (movieId: number): Promise<Movie> => {
   return fetchData<Movie>(`/movie/${movieId}`);
+};
+
+export interface Video {
+  iso_639_1: string;
+  iso_3166_1: string;
+  name: string;
+  key: string; 
+  site: string; 
+  size: number;
+  type: string;
+  official: boolean;
+  published_at: string;
+  id: string;
+}
+
+interface VideosResponse {
+  id: number;
+  results: Video[];
+}
+
+export const getMovieVideos = async (movieId: number): Promise<VideosResponse> => {
+  return fetchData<VideosResponse>(`/movie/${movieId}/videos`);
 };
