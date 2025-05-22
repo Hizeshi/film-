@@ -17,7 +17,7 @@ export default function MovieDetailClient({ movie, trailer }: MovieDetailClientP
   const { addFavorite, removeFavorite, isFavorite } = useFavoritesStore();
   const [isFav, setIsFav] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
-  const [trailerHeight, setTrailerHeight] = useState(295);
+  const [trailerHeight, setTrailerHeight] = useState(395);
   const isResizing = useRef(false);
   const startY = useRef(0);
   const startHeight = useRef(0);
