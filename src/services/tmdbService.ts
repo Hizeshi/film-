@@ -8,38 +8,46 @@ interface FetchOptions extends RequestInit {
 }
 
 const fetchData = async <T>(endpoint: string, options: FetchOptions = {}): Promise<T> => {
+  const { params, ...actualFetchOptions } = options;
+
   const url = new URL(`${BASE_URL}${endpoint}`);
-  url.searchParams.append('api_key', API_KEY as string);
-  
-  if (options.params) {
-    Object.entries(options.params).forEach(([key, value]) => {
-      url.searchParams.append(key, String(value));
-    });
+  if (!API_KEY) {
+    throw new Error("TMDB API Key is not defined. Please check your .env.local file.");
+  }
+  url.searchParams.append('api_key', API_KEY);
+  url.searchParams.append('language', 'ru-RU');
+
+  if (params) {
+    for (const key in params) {
+      url.searchParams.append(key, String(params[key]));
+    }
   }
 
-  const fetchOptions: RequestInit = {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    }
-  };
-
   try {
-    const response = await fetch(url.toString(), fetchOptions);
+    const response = await fetch(url.toString(), actualFetchOptions);
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ message: 'Unknown API error structure' }));
+      const errorData = await response.json().catch(() => ({
+        status_message: `Request failed with status ${response.status}`,
+        success: false,
+        status_code: response.status
+      }));
       console.error('API Error Response:', errorData);
-      const error = new Error(`API request failed with status ${response.status}: ${errorData.status_message || JSON.stringify(errorData)}`) as Error & { status: number };
+      const errorMessage = errorData.status_message || `API request failed with status ${response.status}`;
+      const error = new Error(errorMessage) as Error & { status?: number };
       error.status = response.status;
       throw error;
     }
     return response.json() as Promise<T>;
   } catch (error) {
     console.error('Fetch Error in fetchData:', error);
-    throw error; 
+    throw error;
   }
 };
+
+export interface Genre { 
+  id: number;
+  name: string;
+}
 
 export interface Movie {
   id: number;
@@ -48,6 +56,8 @@ export interface Movie {
   release_date: string;
   vote_average: number;
   overview: string;
+  genre_ids?: number[]; 
+  genres?: Genre[]; 
 }
 
 export interface PaginatedResponse<T> {
@@ -61,16 +71,17 @@ export const getPopularMovies = async (page: number = 1): Promise<PaginatedRespo
   return fetchData<PaginatedResponse<Movie>>('/movie/popular', { params: { page } });
 };
 
-export const getMovieDetails = async (movieId: number): Promise<Movie> => {
-  return fetchData<Movie>(`/movie/${movieId}`);
+export const getMovieDetails = async (movieId: number): Promise<Movie> => { 
+  return fetchData<Movie>(`/movie/${movieId}`, { params: { append_to_response: 'videos,credits' } });
 };
+
 
 export interface Video {
   iso_639_1: string;
   iso_3166_1: string;
   name: string;
-  key: string; 
-  site: string; 
+  key: string;
+  site: string;
   size: number;
   type: string;
   official: boolean;
@@ -78,11 +89,40 @@ export interface Video {
   id: string;
 }
 
-interface VideosResponse {
-  id: number;
+export interface VideosResponse {
   results: Video[];
 }
 
-export const getMovieVideos = async (movieId: number): Promise<VideosResponse> => {
-  return fetchData<VideosResponse>(`/movie/${movieId}/videos`);
+export interface CastMember {
+  id: number;
+  name: string;
+  profile_path: string | null;
+  character: string;
+  order: number; 
+}
+
+export interface CrewMember {
+  id: number;
+  name: string;
+  profile_path: string | null;
+  job: string;
+  department: string;
+}
+export interface Credits {
+  cast: CastMember[];
+  crew: CrewMember[];
+}
+
+export const searchMovies = async (query: string, page: number = 1): Promise<PaginatedResponse<Movie>> => {
+  if (!query.trim()) { 
+    return { page: 1, results: [], total_pages: 0, total_results: 0 };
+  }
+  return fetchData<PaginatedResponse<Movie>>('/search/movie', { params: { query, page, include_adult: false } });
+};
+
+export interface GenresListResponse {
+  genres: Genre[];
+}
+export const getGenres = async (): Promise<GenresListResponse> => {
+  return fetchData<GenresListResponse>('/genre/movie/list');
 };

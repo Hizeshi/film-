@@ -1,5 +1,5 @@
 // src/app/movie/[id]/page.tsx
-import { getMovieDetails, getMovieVideos, Movie, Video } from '@/services/tmdbService';
+import { getMovieDetails, Movie, Video } from '@/services/tmdbService';
 import MovieDetailClient from '@/components/MovieDetailClient';
 import type { Metadata, ResolvingMetadata } from 'next';
 import { notFound } from 'next/navigation';
@@ -39,21 +39,14 @@ export default async function MovieDetailPage({ params }: MovieDetailPageProps) 
   }
 
   try {
-    const [movie, videosResponse] = await Promise.all([
-      getMovieDetails(movieId),
-      getMovieVideos(movieId)
-    ]);
-
-    const officialTrailer = videosResponse.results.find(
-      video => video.site === 'YouTube' && video.type === 'Trailer' && video.official
-    ) || videosResponse.results.find(
-      video => video.site === 'YouTube' && video.type === 'Trailer'
-    ) || videosResponse.results.find(
-      video => video.site === 'YouTube' && video.type === 'Teaser'
+    const movie = await getMovieDetails(movieId);
+    const officialTrailer = (movie as any)?.videos?.results?.find(
+      (video: Video) => video.site === 'YouTube' && video.type === 'Trailer'
+    ) || (movie as any)?.videos?.results?.find(
+      (video: Video) => video.site === 'YouTube' && video.type === 'Teaser'
     ) || null;
 
-
-    return <MovieDetailClient movie={movie} trailer={officialTrailer} />; 
+    return <MovieDetailClient movie={movie} trailer={officialTrailer} />;
 
   } catch (error: any) {
     console.error(`Failed to fetch movie data for ID ${movieId}:`, error.message);
